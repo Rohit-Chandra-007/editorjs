@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beautiful EditorJS - Rich Text Editor</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>✨ Beautiful Rich Text Editor</h1>
+        <p>Create amazing content with advanced formatting tools</p>
+    </div>
+
+    <div class="editor-container">
+        <div id="status" class="status loading">🚀 Loading Editor...</div>
+        <div id="editorjs"></div>
+
+        <div class="buttons-container">
+            <button id="save-btn" class="btn btn-primary">
+                💾 Save Content
+            </button>
+            <button id="clear-btn" class="btn btn-secondary">
+                🗑️ Clear All
+            </button>
+            <button id="export-btn" class="btn btn-success">
+                📄 Export HTML
+            </button>
+            <button id="import-btn" class="btn btn-secondary">
+                📁 Import Data
+            </button>
+        </div>
+
+        <div id="output-container" class="output-container" style="display: none;">
+            <h3>📊 Editor Data Output:</h3>
+            <pre id="output"></pre>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden file input for import -->
+<input type="file" id="file-input" accept=".json" style="display: none;">
+
+<!-- EditorJS Core -->
+<script src="scripts/editor.js"></script>
+
+<!-- All EditorJS Plugins -->
+<script src="scripts/header.js"></script>
+<script src="scripts/list.js"></script>
+<script src="scripts/quote.js"></script>
+<script src="scripts/table.js"></script>
+<script src="scripts/image.js"></script>
+<script src="scripts/marker.js"></script>
+<script src="scripts/underline.js"></script>
+<script src="scripts/paragraph.js"></script>
+
+<!-- Additional plugins for more formatting -->
+<script src="scripts/delimiter.js"></script>
+<script src="scripts/raw.js"></script>
+<script src="scripts/embed.js"></script>
+<script src="scripts/link.js"></script>
+
+<!-- Application JavaScript Files using ES6 Modules -->
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
