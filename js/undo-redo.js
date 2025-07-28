@@ -34,16 +34,24 @@ export class UndoRedoManager {
     const editorElement = document.getElementById('editorjs');
 
     if (this.editor.config && typeof this.editor.config.onChange === 'function') {
-      // Editor already has onChange handler, we need to create a manual listener
-
+      // Editor already has onChange handler, register callback manually
+      this.editor.onChange(() => {
         if (!this.isUndoRedoing) {
           this.handleChange();
         }
       });
+
       // Save state after each word delimiter for finer undo history
-      editorEl.addEventListener('keydown', (event) => {
+      editorElement.addEventListener('keydown', (event) => {
         if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
           this.saveState();
+        }
+      });
+
+      // Save state after paste events
+      editorElement.addEventListener('paste', () => {
+        if (!this.isUndoRedoing) {
+          this.handleChange();
         }
       });
     } else {
@@ -68,6 +76,13 @@ export class UndoRedoManager {
             this.saveState();
           }
         });
+
+        // Track paste events
+        editorElement.addEventListener('paste', () => {
+          if (!this.isUndoRedoing) {
+            this.handleChange();
+          }
+        });
       }
     }
 
@@ -86,6 +101,13 @@ export class UndoRedoManager {
         } else if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
           this.saveState();
           this.lastSaveTime = Date.now();
+        }
+      });
+
+      // Record state after paste events
+      editorElement.addEventListener('paste', () => {
+        if (!this.isUndoRedoing) {
+          this.handleChange();
         }
       });
     }
@@ -233,12 +255,23 @@ export class UndoRedoManager {
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
       const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey;
 
-      if (cmdOrCtrl && !event.shiftKey && event.key === 'z') {
+      if (!cmdOrCtrl) return;
+
+      const key = event.key.toLowerCase();
+
+      if (!event.shiftKey && key === 'z') {
         event.preventDefault();
         this.undo();
-      } else if (cmdOrCtrl && (event.shiftKey && event.key === 'Z' || event.key === 'y')) {
+      } else if ((event.shiftKey && key === 'z') || key === 'y') {
         event.preventDefault();
         this.redo();
+      } else if (key === 'c') {
+        document.execCommand('copy');
+      } else if (key === 'x') {
+        document.execCommand('cut');
+        setTimeout(() => this.handleChange(), 0);
+      } else if (key === 'v') {
+        setTimeout(() => this.handleChange(), 0);
       }
     });
   }
