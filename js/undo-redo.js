@@ -31,16 +31,17 @@ export class UndoRedoManager {
     }, 1000);
 
     // Listen to editor changes
+    const editorElement = document.getElementById('editorjs');
+
     if (this.editor.config && typeof this.editor.config.onChange === 'function') {
       // Editor already has onChange handler, we need to create a manual listener
-      document.getElementById('editorjs').addEventListener('input', () => {
+      editorElement.addEventListener('input', () => {
         if (!this.isUndoRedoing) {
           this.handleChange();
         }
       });
     } else {
       // Setup a mutation observer to detect changes
-      const editorElement = document.getElementById('editorjs');
       if (editorElement) {
         const observer = new MutationObserver(() => {
           if (!this.isUndoRedoing) {
@@ -55,6 +56,25 @@ export class UndoRedoManager {
           attributes: true
         });
       }
+    }
+
+    if (editorElement) {
+      editorElement.addEventListener('keydown', (event) => {
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          if (event.shiftKey) {
+            document.execCommand('outdent');
+          } else {
+            document.execCommand('indent');
+          }
+          if (!this.isUndoRedoing) {
+            this.handleChange();
+          }
+        } else if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
+          this.saveState();
+          this.lastSaveTime = Date.now();
+        }
+      });
     }
 
     // Setup keyboard shortcuts
