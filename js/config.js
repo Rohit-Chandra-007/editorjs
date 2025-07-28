@@ -133,7 +133,7 @@ export const EDITOR_CONFIG = {
 };
 
 export const UI_CONFIG = {
-  // Save history more frequently to track word by word changes
+
   debounceTime: 100,
   maxHistorySize: 50,
   autoSaveInterval: 30000 // 30 seconds
