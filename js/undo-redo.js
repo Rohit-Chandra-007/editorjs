@@ -35,9 +35,15 @@ export class UndoRedoManager {
 
     if (this.editor.config && typeof this.editor.config.onChange === 'function') {
       // Editor already has onChange handler, we need to create a manual listener
-      editorElement.addEventListener('input', () => {
+
         if (!this.isUndoRedoing) {
           this.handleChange();
+        }
+      });
+      // Save state after each word delimiter for finer undo history
+      editorEl.addEventListener('keydown', (event) => {
+        if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
+          this.saveState();
         }
       });
     } else {
@@ -54,6 +60,13 @@ export class UndoRedoManager {
           subtree: true,
           characterData: true,
           attributes: true
+        });
+
+        // Save state when user finishes a word
+        editorElement.addEventListener('keydown', (event) => {
+          if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
+            this.saveState();
+          }
         });
       }
     }
