@@ -1,287 +1,117 @@
-import { UI_CONFIG } from './config.js';
-
-/**
- * Manages undo/redo functionality for the editor
- */
+// js/undo-redo.js
 export class UndoRedoManager {
   /**
-   * Creates a new UndoRedoManager
-   * @param {Object} editor - The EditorJS instance
+   * @param {EditorJS} editor - initialized Editor.js instance
+   * @param {{maxHistory?:number, debounceTime?:number}} opts
    */
-  constructor(editor) {
+  constructor(editor, { maxHistory = 100, debounceTime = 300 } = {}) {
     this.editor = editor;
     this.history = [];
-    this.currentIndex = -1;
-    this.maxHistorySize = UI_CONFIG.maxHistorySize;
-    this.isUndoRedoing = false;
-    this.debounceTime = UI_CONFIG.debounceTime;
-    this.lastSaveTime = 0;
+    this.index = -1;
+    this.maxHistory = maxHistory;
+    this.debounceTime = debounceTime;
+    this.saveTimeout = null;
+    this.isRestoring = false;
 
-    // Initialize
-    this.init();
+    editor.isReady.then(() => {
+      // Initial snapshot after editor is fully ready
+      this._saveSnapshot();
+      // Keyboard shortcuts
+      this._bindShortcuts();
+      // Buttons initial state (if buttons exist)
+      this._updateButtons();
+    });
   }
 
-  /**
-   * Initialize the undo/redo manager
-   */
-  init() {
-    // Save initial state
-    setTimeout(() => {
-      this.saveState();
-    }, 1000);
-
-    // Listen to editor changes
-    const editorElement = document.getElementById('editorjs');
-
-    if (this.editor.config && typeof this.editor.config.onChange === 'function') {
-      // Editor already has onChange handler, register callback manually
-      this.editor.onChange(() => {
-        if (!this.isUndoRedoing) {
-          this.handleChange();
-        }
-      });
-
-      // Save state after each word delimiter for finer undo history
-      editorElement.addEventListener('keydown', (event) => {
-        if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
-          this.saveState();
-        }
-      });
-
-      // Save state after paste events
-      editorElement.addEventListener('paste', () => {
-        if (!this.isUndoRedoing) {
-          this.handleChange();
-        }
-      });
-    } else {
-      // Setup a mutation observer to detect changes
-      if (editorElement) {
-        const observer = new MutationObserver(() => {
-          if (!this.isUndoRedoing) {
-            this.handleChange();
-          }
-        });
-
-        observer.observe(editorElement, {
-          childList: true,
-          subtree: true,
-          characterData: true,
-          attributes: true
-        });
-
-        // Save state when user finishes a word
-        editorElement.addEventListener('keydown', (event) => {
-          if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
-            this.saveState();
-          }
-        });
-
-        // Track paste events
-        editorElement.addEventListener('paste', () => {
-          if (!this.isUndoRedoing) {
-            this.handleChange();
-          }
-        });
-      }
-    }
-
-    if (editorElement) {
-      editorElement.addEventListener('keydown', (event) => {
-        if (event.key === 'Tab') {
-          event.preventDefault();
-          if (event.shiftKey) {
-            document.execCommand('outdent');
-          } else {
-            document.execCommand('indent');
-          }
-          if (!this.isUndoRedoing) {
-            this.handleChange();
-          }
-        } else if (!this.isUndoRedoing && (event.key === ' ' || event.key === 'Enter')) {
-          this.saveState();
-          this.lastSaveTime = Date.now();
-        }
-      });
-
-      // Record state after paste events
-      editorElement.addEventListener('paste', () => {
-        if (!this.isUndoRedoing) {
-          this.handleChange();
-        }
-      });
-    }
-
-    // Setup keyboard shortcuts
-    this.setupKeyboardShortcuts();
-
-    // Update buttons initially
-    this.updateButtons();
+  /** Public: request a debounced snapshot (call from EditorJS onChange) */
+  capture() {
+    if (this.isRestoring) return;
+    clearTimeout(this.saveTimeout);
+    this.saveTimeout = setTimeout(() => this._saveSnapshot(), this.debounceTime);
   }
 
-  /**
-   * Handles changes to the editor content
-   */
-  handleChange() {
-    const now = Date.now();
-    if (now - this.lastSaveTime > this.debounceTime) {
-      this.saveState();
-      this.lastSaveTime = now;
-    } else {
-      // Debounce rapid changes
-      clearTimeout(this.saveTimeout);
-      this.saveTimeout = setTimeout(() => {
-        this.saveState();
-      }, this.debounceTime);
-    }
-  }
-
-  /**
-   * Saves the current editor state to history
-   */
-  async saveState() {
+  async _saveSnapshot() {
     try {
       const data = await this.editor.save();
+      const snapshot = JSON.stringify(data);
 
-      // Don't save if it's the same as current state
-      if (this.currentIndex >= 0) {
-        const currentState = this.history[this.currentIndex];
-        if (JSON.stringify(currentState) === JSON.stringify(data)) {
-          return;
-        }
-      }
+      // Skip if no change
+      if (this.history[this.index] === snapshot) return;
 
-      // Remove any states after current index (when new changes are made after undo)
-      this.history = this.history.slice(0, this.currentIndex + 1);
+      // Trim any redo branch and push new
+      this.history = this.history.slice(0, this.index + 1);
+      this.history.push(snapshot);
 
-      // Add new state
-      this.history.push(JSON.parse(JSON.stringify(data)));
-      this.currentIndex++;
-
-      // Limit history size
-      if (this.history.length > this.maxHistorySize) {
+      // Cap history
+      if (this.history.length > this.maxHistory) {
         this.history.shift();
-        this.currentIndex--;
+      } else {
+        this.index++;
       }
-
-      this.updateButtons();
-      console.log('State saved. History length:', this.history.length);
-    } catch (error) {
-      console.error('Error saving state:', error);
+      this._updateButtons();
+    } catch (e) {
+      console.error('Undo/Redo: snapshot failed:', e);
     }
   }
 
-  /**
-   * Performs an undo operation
-   */
   async undo() {
-    if (!this.canUndo()) return;
-
-    this.isUndoRedoing = true;
-
+    if (this.index <= 0) return;
+    this.isRestoring = true;
     try {
-      this.currentIndex--;
-      const state = this.history[this.currentIndex];
-      await this.editor.render(state);
-      this.updateButtons();
-      console.log('Undo performed. Current index:', this.currentIndex);
-    } catch (error) {
-      console.error('Error during undo:', error);
-      this.currentIndex++; // Revert on error
+      this.index--;
+      await this.editor.render(JSON.parse(this.history[this.index]));
     } finally {
-      this.isUndoRedoing = false;
+      this.isRestoring = false;
+      this._updateButtons();
     }
   }
 
-  /**
-   * Performs a redo operation
-   */
   async redo() {
-    if (!this.canRedo()) return;
-
-    this.isUndoRedoing = true;
-
+    if (this.index >= this.history.length - 1) return;
+    this.isRestoring = true;
     try {
-      this.currentIndex++;
-      const state = this.history[this.currentIndex];
-      await this.editor.render(state);
-      this.updateButtons();
-      console.log('Redo performed. Current index:', this.currentIndex);
-    } catch (error) {
-      console.error('Error during redo:', error);
-      this.currentIndex--; // Revert on error
+      this.index++;
+      await this.editor.render(JSON.parse(this.history[this.index]));
     } finally {
-      this.isUndoRedoing = false;
+      this.isRestoring = false;
+      this._updateButtons();
     }
   }
 
-  /**
-   * Checks if undo is available
-   * @returns {boolean} True if undo is available
-   */
-  canUndo() {
-    return this.currentIndex > 0;
-  }
-
-  /**
-   * Checks if redo is available
-   * @returns {boolean} True if redo is available
-   */
-  canRedo() {
-    return this.currentIndex < this.history.length - 1;
-  }
-
-  /**
-   * Updates the undo/redo button states
-   */
-  updateButtons() {
-    const undoBtn = document.getElementById('undo-btn');
-    const redoBtn = document.getElementById('redo-btn');
-
-    if (undoBtn) {
-      undoBtn.disabled = !this.canUndo();
-    }
-
-    if (redoBtn) {
-      redoBtn.disabled = !this.canRedo();
-    }
-  }
-
-  /**
-   * Sets up keyboard shortcuts for undo/redo
-   */
-  setupKeyboardShortcuts() {
-    document.addEventListener('keydown', (event) => {
+  _bindShortcuts() {
+    document.addEventListener('keydown', (e) => {
       const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-      const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey;
-
+      const cmdOrCtrl = isMac ? e.metaKey : e.ctrlKey;
       if (!cmdOrCtrl) return;
 
-      const key = event.key.toLowerCase();
+      const key = e.key.toLowerCase();
 
-      if (!event.shiftKey && key === 'z') {
-        event.preventDefault();
+      // Undo: Ctrl/Cmd + Z
+      if (!e.shiftKey && key === 'z') {
+        e.preventDefault();
         this.undo();
-      } else if ((event.shiftKey && key === 'z') || key === 'y') {
-        event.preventDefault();
+        return;
+      }
+
+      // Redo: Ctrl+Y  OR  Shift+Cmd+Z (Mac)
+      if (key === 'y' || (e.shiftKey && key === 'z')) {
+        e.preventDefault();
         this.redo();
-      } else if (key === 'c') {
-        document.execCommand('copy');
-      } else if (key === 'x') {
-        document.execCommand('cut');
-        setTimeout(() => this.handleChange(), 0);
-      } else if (key === 'v') {
-        setTimeout(() => this.handleChange(), 0);
+        return;
       }
     });
   }
 
-  /**
-   * Clears the undo/redo history
-   */
+  _updateButtons() {
+    const undoBtn = document.getElementById('undo-btn');
+    const redoBtn = document.getElementById('redo-btn');
+    if (undoBtn) undoBtn.disabled = !(this.index > 0);
+    if (redoBtn) redoBtn.disabled = !(this.index < this.history.length - 1);
+  }
+
   clear() {
     this.history = [];
-    this.currentIndex = -1;
-    this.updateButtons();
+    this.index = -1;
+    this._updateButtons();
   }
 }

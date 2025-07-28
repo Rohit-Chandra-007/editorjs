@@ -1,6 +1,6 @@
-import { EDITOR_CONFIG } from './config.js';
-import { updateStatus, handlePaste } from './utils.js';
-import { UndoRedoManager } from './undo-redo.js';
+import {EDITOR_CONFIG} from './config.js';
+import {updateStatus, handlePaste} from './utils.js';
+import {UndoRedoManager} from './undo-redo.js';
 
 /**
  * Manages the EditorJS instance and core functionality
@@ -28,17 +28,14 @@ export class EditorManager {
           updateStatus('✅ Editor Ready! Start creating amazing content!', 'success');
           console.log('Editor.js is ready to work!');
 
-          this.undoRedoManager = new UndoRedoManager(this.editor);
+          this.undoRedoManager = new UndoRedoManager(this.editor, {maxHistory: 50, debounceTime: 200});
           this.setupPasteHandler();
         },
         onChange: (api, event) => {
           console.log('Content changed!', event);
-          // If there's a registered callback, call it
-          if (changeCallback && typeof changeCallback === 'function') {
-            changeCallback(api, event);
-          }
+          this.undoRedoManager?.capture();
         },
-        data: null
+        data: {blocks: []},
       });
 
       // Add a custom method to register change listeners
