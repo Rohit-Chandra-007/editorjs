@@ -132,7 +132,7 @@ export const EDITOR_CONFIG = {
 };
 
 export const UI_CONFIG = {
-  debounceTime: 500,
+  debounceTime: 100,
   maxHistorySize: 50,
   autoSaveInterval: 30000 // 30 seconds
 };
