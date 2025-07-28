@@ -20,7 +20,8 @@ export const EDITOR_CONFIG = {
       class: EditorjsList,
       inlineToolbar: true,
       config: {
-        defaultStyle: 'unordered'
+        defaultStyle: 'unordered',
+        maxNestingLevel: 5
       }
     },
 
@@ -132,7 +133,8 @@ export const EDITOR_CONFIG = {
 };
 
 export const UI_CONFIG = {
-  debounceTime: 500,
+  // Save history more frequently to track word by word changes
+  debounceTime: 100,
   maxHistorySize: 50,
   autoSaveInterval: 30000 // 30 seconds
 };

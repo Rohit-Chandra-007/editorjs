@@ -32,6 +32,16 @@ export class UIHandlers {
       this.handleExport();
     });
 
+    // Undo button
+    document.getElementById('undo-btn')?.addEventListener('click', () => {
+      this.editorManager.undoRedoManager?.undo();
+    });
+
+    // Redo button
+    document.getElementById('redo-btn')?.addEventListener('click', () => {
+      this.editorManager.undoRedoManager?.redo();
+    });
+
     // Import button
     document.getElementById('import-btn')?.addEventListener('click', () => {
       this.handleImport();

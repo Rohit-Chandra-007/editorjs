@@ -1,7 +1,7 @@
 // Main application initialization
 
 import {EditorManager} from './editor-manager.js';
-// import {UIHandlers} from './ui-handlers.js';
+import {UIHandlers} from './ui-handlers.js';
 import {updateStatus} from './utils.js';
 
 class App {
@@ -37,7 +37,7 @@ class App {
       // Initialize the editor with a small delay
       setTimeout(async () => {
         await this.editorManager.initialize();
-        //this.uiHandlers = new UIHandlers(this.editorManager);
+        this.uiHandlers = new UIHandlers(this.editorManager);
         console.log('Application started successfully');
       }, 500);
 
